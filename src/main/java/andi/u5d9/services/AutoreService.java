@@ -5,6 +5,8 @@ import andi.u5d9.exceptions.BadRequestException;
 import andi.u5d9.exceptions.NotFoundException;
 import andi.u5d9.payloads.AutorePayload;
 import andi.u5d9.repositories.AutoreRepository;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -12,22 +14,24 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
+import java.io.IOException;
+import java.util.*;
 
 @Service
 @Slf4j
 public class AutoreService {
 
     private final AutoreRepository autoreRepository;
+    private final Cloudinary cloudinaryUploader;
+
 
     @Autowired
-    public AutoreService(AutoreRepository autoreRepository) {
+    public AutoreService(AutoreRepository autoreRepository,Cloudinary cloudinaryUploader) {
 
         this.autoreRepository = autoreRepository;
+        this.cloudinaryUploader = cloudinaryUploader;
     }
 
     public Autore save(AutorePayload payload) {
@@ -65,28 +69,18 @@ public class AutoreService {
     }
 
     public Autore findByIdAndUpdate(UUID autoreId, AutorePayload payload) {
-        // 1. Cerchiamo l'utente nel db
         Autore found = this.findById(autoreId);
-
-        // 2. Validazione dati (esempio controllo se email è già in uso)
         if (!found.getEmail().equals(payload.getEmail())) this.autoreRepository.findByEmail(payload.getEmail()).ifPresent(user -> {
             throw new BadRequestException("L'email " + user.getEmail() + " è già in uso!");
         });
-
-        // 3. Modifico l'autore trovato
         found.setNome(payload.getNome());
         found.setCognome(payload.getCognome());
         found.setEmail(payload.getEmail());
         found.setDataDiNascita(payload.getDataDiNascita());
         found.setAvatar("https://ui-avatars.com/api?name=" + payload.getNome() + "+" + payload.getCognome());
-
-        // 4. Salvo
         Autore modifiedAutore = this.autoreRepository.save(found);
-
-        // 5. Log
         log.info("L'autore con id " + modifiedAutore.getIdAutore() + " è stato modificato correttamente");
 
-        // 6. Ritorno l'autore modificato
         return modifiedAutore;
     }
 
@@ -94,4 +88,22 @@ public class AutoreService {
         Autore found = this.findById(autoreId);
         this.autoreRepository.delete(found);
     }
+
+    public String uploadAvatar(UUID autoreId, MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new BadRequestException("Il file non può essere vuoto");
+        }
+        try {
+            Map risultato = cloudinaryUploader.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
+            String imageUrl = (String) risultato.get("secure_url");
+            Autore autore = findById(autoreId);
+            autore.setAvatar(imageUrl);
+            autoreRepository.save(autore);
+            return imageUrl;
+        } catch (IOException e) {
+            throw new RuntimeException("Errore durante l'upload dell'immagine", e);
+        }
+    }
+
+
 }

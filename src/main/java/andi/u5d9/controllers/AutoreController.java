@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -56,4 +57,9 @@ public class AutoreController {
         this.autoreService.findByIdAndDelete(autoreId);
     }
 
+    @PatchMapping("/{autoreId}/avatar")
+    public String uploadImage(@RequestParam("avatar") MultipartFile file, @PathVariable UUID autoreId) {
+        String url = this.autoreService.uploadAvatar(autoreId,file);
+        return url;
+    }
 }
